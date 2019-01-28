@@ -40,10 +40,10 @@ OP_INJECTION_PAYLOADS_LIST = [ # LIST OF BLIND XSS PAYLOADS
 
 
 ################ FOR DEBUGGING #####################
-OP_DEBUG_MODE			    = 0
-OP_DEBUG_SERVER			  = "127.0.0.1"
-OP_DEBUG_PORT			    = 80
-OP_DEBUG_USE_HTTPS		= 0
+OP_DEBUG_MODE		= 0
+OP_DEBUG_SERVER		= "127.0.0.1"
+OP_DEBUG_PORT		= 80
+OP_DEBUG_USE_HTTPS	= 0
 OP_SHOW_OUT_OF_SCOPE	= 0
 ################ FOR DEBUGGING #####################
 
@@ -75,7 +75,7 @@ class BurpExtender(IBurpExtender,IHttpListener):
 		if not isRequest: return
 
 		request 	= rawData.getRequest()
-		requestInfo = self.helpers.analyzeRequest(rawData)
+		requestInfo 	= self.helpers.analyzeRequest(rawData)
 		url 		= requestInfo.getUrl()
 
 
@@ -85,14 +85,14 @@ class BurpExtender(IBurpExtender,IHttpListener):
 			return
 
 		https     = 1 if 'https' in requestInfo.url.getProtocol() else 0
-		body 		  = request[requestInfo.getBodyOffset():]
-		path 		  = requestInfo.url.getPath()
-		host 		  = requestInfo.url.getHost()
+		body 	  = request[requestInfo.getBodyOffset():]
+		path 	  = requestInfo.url.getPath()
+		host 	  = requestInfo.url.getHost()
 		port      = requestInfo.url.port
 		method    = requestInfo.getMethod()
-		headers 	= requestInfo.getHeaders()
+		headers   = requestInfo.getHeaders()
 		paramters = requestInfo.getParameters()
-		vparams 	= [p for p in paramters if p.getType() in OP_INJECTION_PARAMS]
+		vparams   = [p for p in paramters if p.getType() in OP_INJECTION_PARAMS]
 
 		req_time  = datetime.datetime.today().strftime('%m/%d|%H:%M:%S') 
 
