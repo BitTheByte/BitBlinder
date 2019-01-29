@@ -52,7 +52,7 @@ Version 0.04b
 
 
 # TO-DO (By priority)
-- GUI
+- GUI ✓ ( A very ugly one for now.. )
 - Fix endless request loops
 - Injection in headers
 - Option to exclude paramters/hosts/endpoints
