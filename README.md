@@ -6,7 +6,7 @@ Burp extension helps in finding blind xss vulnerabilities by injecting xss paylo
 *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 -  Developer: Ahmed Ezzat (BitTheByte)      -
 -  Github:    https://github.com/BitTheByte -
--  Version:   0.04b                         -
+-  Version:   0.05b                         -
 *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 [WARNING] MAKE SURE TO EDIT THE SETTINGS BEFORE USE
 [WARNING] THIS TOOL WILL WORK FOR IN-SCOPE ITEMS ONLY
@@ -53,7 +53,7 @@ Version 0.04b
 
 # TO-DO (By priority)
 - GUI ✓ ( A very ugly one for now.. )
-- Fix endless request loops
+- Fix endless request loops ✓
 - Injection in headers
 - Option to exclude paramters/hosts/endpoints
 - Better output/logging system
