@@ -1,16 +1,11 @@
-from socket import gethostbyname
-from random import randint
 from burp import IBurpExtender
 from burp import IHttpListener
 from burp import ITab
 from lib.utils import URL
 from lib.ui import GUI
+from random import randint
 import datetime
 import sys
-
-
-
-
 
 OP_INJECTION_PARAMS = [
 	URL.PARAM_URL,
@@ -53,37 +48,32 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         # Settings up the main gui
         self.callbacks.customizeUiComponent(self.ui.panel)
         self.callbacks.addSuiteTab(self)
-
         print("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
         print("-  Developer: Ahmed Ezzat (BitTheByte)      -")
         print("-  Github:    https://github.com/BitTheByte -")
-        print("-  Version:   0.04b                         -")
+        print("-  Version:   0.05b                         -")
         print("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
         print("[WARNING] MAKE SURE TO EDIT THE SETTINGS BEFORE USE")
         print("[WARNING] THIS TOOL WILL WORK FOR IN-SCOPE ITEMS ONLY")
         print("[WARNING] THIS TOOL WILL CONSUME TOO MUCH BANDWIDTH")
-
-        # Invoke burp's api
         return
 
-    def processHttpMessage(self, flags, isRequest, rawData):
+    def processHttpMessage(self, toolFlag, messageIsRequest, messageInfo):
 
     	# Check if tool is enabled from the gui panel
         if not self.ui.enable.isSelected(): return
-        # Check if it's not a request from burp
-        if not isRequest: return
 
-        # Getting request data
-        request = rawData.getRequest()
-        requestInfo = self.helpers.analyzeRequest(rawData)
+        # Check if it's not a request from burp
+        if not messageIsRequest: return
+
+        request = messageInfo.getRequest()
+        requestInfo = self.helpers.analyzeRequest(messageInfo)
         url = requestInfo.getUrl()
 
         # Check if the url in the scope
         if not self.callbacks.isInScope(url):
-            if OP_SHOW_OUT_OF_SCOPE:
-                print("[-] %s is out of scope" % url)
+            if OP_SHOW_OUT_OF_SCOPE: print("[-] %s is out of scope" % url)
             return
-
 
         https = 1 if 'https' in requestInfo.url.getProtocol() else 0
         payloads = self.ui.get_payloads()
@@ -99,15 +89,15 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         req_time = datetime.datetime.today().strftime('%m/%d|%H:%M:%S')
 
         print("====================================================")
-        print("[{}] HOST: %s".format(req_time) % host)
-        print("[{}] PATH: %s".format(req_time) % path)
-        print("[{}] PORT: %i".format(req_time) % port)
-        print("[{}] METH: %s".format(req_time) % method)
-        print("[{}] HTTP: %i".format(req_time) % (not https))
-        print("[{}] INJC: %s".format(req_time) % len(vparams))
+        print("[{}] Host: %s".format(req_time) % host)
+        print("[{}] Path: %s".format(req_time) % path)
+        print("[{}] Port: %i".format(req_time) % port)
+        print("[{}] Method: %s".format(req_time) % method)
+        print("[{}] Using http: %i".format(req_time) % (not https))
+        print("[{}] Injection points: %s".format(req_time) % len(vparams))
         print("====================================================")
 
-        new_request = request
+
         new_paramters_value = []
 
         for paramter in vparams:
@@ -115,7 +105,10 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             value = paramter.getValue()
             ptype = paramter.getType()
 
-            # Check if the randomize option is selected
+            # To prevent self scanning
+            if name == "blinder_ignore_request" and value == "yes": return
+
+ 
             if self.ui.randomize.isSelected():
                 payload = payloads[randint(0, len(payloads) - 1)]
             else:
@@ -123,26 +116,28 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
             # Adding the new paramters to array to use it for later
             new_paramters_value.append(
-                	self.helpers.buildParameter(name, payload, ptype)
-                )
+                self.helpers.buildParameter(name, payload, ptype)
+            )
 
 
-        for new_paramter in new_paramters_value:
-            name = new_paramter.getName()
-            value = new_paramter.getValue()
-            ptype = new_paramter.getType()
+        for paramter in new_paramters_value:
+            name = paramter.getName()
+            value = paramter.getValue()
+            ptype = paramter.getType()
 
-            updated = self.helpers.updateParameter(new_request, new_paramter)
+            updated_request = self.helpers.addParameter(
+                self.helpers.updateParameter(request, paramter),
+                self.helpers.buildParameter("blinder_ignore_request", "yes", 0)
+            )
 
-            # Check if debug mode is enabled
             if OP_DEBUG_MODE:
                 self.callbacks.makeHttpRequest(
-                    	gethostbyname(OP_DEBUG_SERVER), OP_DEBUG_PORT,
-                    	OP_DEBUG_USE_HTTPS, updated
-                    )
+                    OP_DEBUG_SERVER, OP_DEBUG_PORT,
+                    OP_DEBUG_USE_HTTPS, updated_request
+                )
             else:
                 self.callbacks.makeHttpRequest(
-                    	gethostbyname(host), port, https, updated
-                    )
-        # Invoke burp api
+                    host, port, https, updated_request
+                )
+
         return
