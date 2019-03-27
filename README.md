@@ -47,7 +47,7 @@ The previous example also applies to `POST` parameters
 
 # Current version
 ```
-Version 0.04b
+Version 0.05b
 ```
 
 
