@@ -14,7 +14,7 @@ class Helpers(object):
 
     def get_payloads(self):
 
-        return (self.payloads_list.getText()).split("\n")
+        return (self.payloads_list.getText().replace(" ","%20")).split("\n")
 
     def save_settings(self, evnt):
 
@@ -25,7 +25,7 @@ class Helpers(object):
         for payload in self.get_payloads():
             config['Payloads'].append(payload)
 
-        f = open("config.json", "w") 
+        f = open("./config.json", "w") 
         f.write(json.dumps(config))
         f.close() # For some reason jython doesn't close the file without this line
 
@@ -37,7 +37,7 @@ class Helpers(object):
         # Check if there's saved config if true then load it
         if os.path.isfile('./config.json'):
 
-            f = open("config.json", "r")
+            f = open("./config.json", "r")
             config = json.loads(f.read())
             f.close() # For some reason jython doesn't close the file without this line
 
