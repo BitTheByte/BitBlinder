@@ -18,17 +18,18 @@ class Helpers(object):
 
     def save_settings(self, evnt):
 
-        config = {'isEnabled': 0, 'Randomize': 0, 'Payloads': []}
-        config['isEnabled'] = self.enable.isSelected()
+        config = {
+            'Randomize': 0,
+            'Payloads': [],
+            'isEnabled': self.enable.isSelected(),
+        }
         config['Randomize'] = self.randomize.isSelected()
 
         for payload in self.get_payloads():
             config['Payloads'].append(payload)
 
-        f = open("./config.json", "w") 
-        f.write(json.dumps(config))
-        f.close() # For some reason jython doesn't close the file without this line
-
+        with open("./config.json", "w") as f:
+            f.write(json.dumps(config))
         print("[~] Settings saved")
         return
 
@@ -37,10 +38,8 @@ class Helpers(object):
         # Check if there's saved config if true then load it
         if os.path.isfile('./config.json'):
 
-            f = open("./config.json", "r")
-            config = json.loads(f.read())
-            f.close() # For some reason jython doesn't close the file without this line
-
+            with open("./config.json", "r") as f:
+                config = json.loads(f.read())
             self.enable.setSelected(config['isEnabled'])
             self.randomize.setSelected(config['Randomize'])
             self.payloads_list.setText('\n'.join(config['Payloads']))

@@ -72,7 +72,8 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
         # Check if the url in the scope
         if not self.callbacks.isInScope(url):
-            if OP_SHOW_OUT_OF_SCOPE: print("[-] %s is out of scope" % url)
+            if OP_SHOW_OUT_OF_SCOPE:
+                print(f"[-] {url} is out of scope")
             return
 
         https = 1 if 'https' in requestInfo.url.getProtocol() else 0
@@ -86,15 +87,15 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         paramters = requestInfo.getParameters()
         vparams = [p for p in paramters if p.getType() in OP_INJECTION_PARAMS]
 
-        req_time = datetime.datetime.today().strftime('%m/%d|%H:%M:%S')
+        req_time = datetime.datetime.now().strftime('%m/%d|%H:%M:%S')
 
         print("====================================================")
-        print("[{}] Host: %s".format(req_time) % host)
-        print("[{}] Path: %s".format(req_time) % path)
-        print("[{}] Port: %i".format(req_time) % port)
-        print("[{}] Method: %s".format(req_time) % method)
-        print("[{}] Using http: %i".format(req_time) % (not https))
-        print("[{}] Injection points: %s".format(req_time) % len(vparams))
+        print(f"[{req_time}] Host: %s" % host)
+        print(f"[{req_time}] Path: %s" % path)
+        print(f"[{req_time}] Port: %i" % port)
+        print(f"[{req_time}] Method: %s" % method)
+        print(f"[{req_time}] Using http: %i" % (not https))
+        print(f"[{req_time}] Injection points: %s" % len(vparams))
         print("====================================================")
 
 
@@ -108,7 +109,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             # To prevent self scanning
             if name == "blinder_ignore_request" and value == "yes": return
 
- 
+
             if self.ui.randomize.isSelected():
                 payload = payloads[randint(0, len(payloads) - 1)]
             else:
