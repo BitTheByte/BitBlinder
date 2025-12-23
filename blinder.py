@@ -13,6 +13,7 @@ from java.awt import GridBagConstraints
 from java.awt import GridBagLayout
 from java.awt import GridLayout
 from java.awt import Insets
+from java.awt import Dimension
 from javax.swing import BorderFactory
 from javax.swing import BoxLayout
 from javax.swing import JButton
@@ -21,13 +22,13 @@ from javax.swing import JComboBox
 from javax.swing import JLabel
 from javax.swing import JPanel
 from javax.swing import JScrollPane
-from javax.swing import JSplitPane
 from javax.swing import JTable
 from javax.swing import JTextArea
 from javax.swing import JTextField
 from javax.swing import SwingUtilities
 from javax.swing.table import DefaultTableModel
 from java.lang import Runnable
+from java.awt.event import ComponentAdapter
 import json
 try:
     basestring
@@ -56,6 +57,7 @@ DEFAULT_CONFIG = {
     'JsonStringsOnly': True,
     'VerboseActivity': True,
     'AutoEncode': True,
+    'InScopeOnly': True,
     'Headers': [
         'User-Agent',
         'Referer',
@@ -120,6 +122,9 @@ class Helpers(object):
     def get_auto_encode(self):
         return self.auto_encode.isSelected()
 
+    def get_in_scope_only(self):
+        return self.in_scope_only.isSelected()
+
     def save_settings(self, evnt=None):
         config = DEFAULT_CONFIG.copy()
         config['Randomize'] = self.randomize.isSelected()
@@ -130,6 +135,7 @@ class Helpers(object):
         config['JsonStringsOnly'] = self.get_json_strings_only()
         config['VerboseActivity'] = self.get_verbose_activity()
         config['AutoEncode'] = self.get_auto_encode()
+        config['InScopeOnly'] = self.get_in_scope_only()
         config['Headers'] = self.get_header_names()
         config['ExcludeHosts'] = self.get_exclude_hosts()
         config['ExcludePaths'] = self.get_exclude_paths()
@@ -140,13 +146,11 @@ class Helpers(object):
             if not getattr(self, "callbacks", None):
                 raise Exception("Burp callbacks not set")
             self.callbacks.saveExtensionSetting(CONFIG_KEY, json.dumps(config))
-            print("[~] Settings saved to Burp extension storage")
             if hasattr(self, "append_activity"):
                 self.append_activity("Settings saved")
             if hasattr(self, "update_validation"):
                 self.update_validation()
         except Exception as exc:
-            print("[!] Failed to save settings: %s" % exc)
             if hasattr(self, "append_activity"):
                 self.append_activity("Failed to save settings: %s" % exc)
         return
@@ -161,13 +165,11 @@ class Helpers(object):
             if raw:
                 loaded = json.loads(raw)
                 config.update(loaded)
-                print("[~] Settings loaded from Burp extension storage")
                 if hasattr(self, "append_activity"):
                     self.append_activity("Settings loaded")
             if hasattr(self, "update_validation"):
                 self.update_validation()
         except Exception as exc:
-            print("[!] Failed to load settings: %s" % exc)
             if hasattr(self, "append_activity"):
                 self.append_activity("Failed to load settings: %s" % exc)
 
@@ -179,6 +181,7 @@ class Helpers(object):
         self.json_strings_only.setSelected(bool(config.get('JsonStringsOnly', True)))
         self.verbose_activity.setSelected(bool(config.get('VerboseActivity', True)))
         self.auto_encode.setSelected(bool(config.get('AutoEncode', True)))
+        self.in_scope_only.setSelected(bool(config.get('InScopeOnly', True)))
         self.headers_list.setText('\n'.join(config.get('Headers', [])))
         self.exclude_hosts_list.setText('\n'.join(config.get('ExcludeHosts', [])))
         self.exclude_paths_list.setText('\n'.join(config.get('ExcludePaths', [])))
@@ -233,7 +236,6 @@ class GUI(Helpers):
         panel = self._build_section("General", layout="box")
 
         self.enable = JCheckBox("Enable scanning")
-        self.enable.setToolTipText("Runs only on in-scope items from Burp Target scope.")
         self.randomize = JCheckBox("Randomize payloads")
         self.randomize.setToolTipText("Pick a random payload per injection.")
         self.inject_headers = JCheckBox("Inject headers")
@@ -246,13 +248,20 @@ class GUI(Helpers):
         self.verbose_activity.setToolTipText("Show payload details in the status line.")
         self.auto_encode = JCheckBox("Auto-encode payloads for URL/body")
         self.auto_encode.setToolTipText("If disabled, payloads are inserted raw into URL/body params.")
+        self.in_scope_only = JCheckBox("In-scope only")
+        self.in_scope_only.setToolTipText("If enabled, only in-scope items are processed.")
 
-        self._add_row(panel, [self.enable, self.randomize, self.inject_headers])
-        self._add_row(panel, [self.inject_json, self.json_strings_only])
-        self._add_row(panel, [self.verbose_activity, self.auto_encode])
+        self._add_row(panel, [
+            self.enable,
+            self.randomize,
+            self.inject_headers,
+            self.inject_json,
+            self.json_strings_only,
+            self.verbose_activity,
+            self.auto_encode,
+            self.in_scope_only,
+        ])
 
-        self.scope_label = JLabel("Scope: waiting for traffic (in-scope only)")
-        panel.add(self.scope_label)
 
         self.rate_limit = JTextField("0", 6)
         self.rate_limit.setToolTipText("Milliseconds between injections per host:port.")
@@ -281,7 +290,7 @@ class GUI(Helpers):
 
     def _section_exclusions(self):
         panel = self._build_section("Exclusions", layout="border")
-        grid = JPanel(GridLayout(1, 3, 8, 0))
+        self.exclusions_grid = JPanel(GridLayout(1, 3, 8, 0))
 
         hosts_panel = JPanel(BorderLayout())
         hosts_panel.add(JLabel("Hosts"), BorderLayout.NORTH)
@@ -298,11 +307,11 @@ class GUI(Helpers):
         self.exclude_params_list = self._build_text_area(5)
         params_panel.add(JScrollPane(self.exclude_params_list), BorderLayout.CENTER)
 
-        grid.add(hosts_panel)
-        grid.add(paths_panel)
-        grid.add(params_panel)
+        self.exclusions_grid.add(hosts_panel)
+        self.exclusions_grid.add(paths_panel)
+        self.exclusions_grid.add(params_panel)
 
-        panel.add(grid, BorderLayout.CENTER)
+        panel.add(self.exclusions_grid, BorderLayout.CENTER)
         return panel
 
     def _section_controls(self):
@@ -325,26 +334,12 @@ class GUI(Helpers):
         self.log_table = JTable(self.log_model)
         panel.add(JScrollPane(self.log_table), BorderLayout.CENTER)
 
-        self.status_label = JLabel("Ready (in-scope only)")
+        self.status_label = JLabel("Ready")
         panel.add(self.status_label, BorderLayout.SOUTH)
         return panel
 
     def gui(self):
         self.panel = JPanel(BorderLayout())
-
-        guide = self._build_section("First-time setup", layout="border")
-        guide_text = JTextArea(4, 40)
-        guide_text.setEditable(False)
-        guide_text.setLineWrap(True)
-        guide_text.setWrapStyleWord(True)
-        guide_text.setText(
-            "1) Add your target to Burp scope. "
-            "2) Enable scanning. "
-            "3) Add at least one payload. "
-            "4) Browse the app. "
-            "5) Monitor the Activity table."
-        )
-        guide.add(guide_text, BorderLayout.CENTER)
 
         settings_panel = JPanel(GridBagLayout())
         constraints = GridBagConstraints()
@@ -354,7 +349,6 @@ class GUI(Helpers):
         constraints.fill = GridBagConstraints.HORIZONTAL
 
         sections = [
-            (guide, 0.0, GridBagConstraints.HORIZONTAL),
             (self._section_general(), 0.0, GridBagConstraints.HORIZONTAL),
             (self._section_payloads(), 0.6, GridBagConstraints.BOTH),
             (self._section_headers(), 0.2, GridBagConstraints.BOTH),
@@ -368,20 +362,36 @@ class GUI(Helpers):
             constraints.fill = fill
             settings_panel.add(section, constraints)
 
-        split = JSplitPane(JSplitPane.VERTICAL_SPLIT, settings_panel, self._section_log())
-        split.setResizeWeight(0.7)
+        settings_scroll = JScrollPane(settings_panel)
+        settings_scroll.getVerticalScrollBar().setUnitIncrement(12)
+        settings_scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER)
+        settings_scroll.setMinimumSize(Dimension(200, 200))
+        activity_panel = self._section_log()
+        activity_panel.setMinimumSize(Dimension(200, 180))
+        activity_panel.setPreferredSize(Dimension(200, 220))
 
-        self.panel.add(split, BorderLayout.CENTER)
+        self.panel.add(settings_scroll, BorderLayout.CENTER)
+        self.panel.add(activity_panel, BorderLayout.SOUTH)
+
+        owner = self
+
+        class _ResizeAdapter(ComponentAdapter):
+            def componentResized(self, event):
+                width = owner.panel.getWidth()
+                if width <= 700:
+                    owner.exclusions_grid.setLayout(GridLayout(3, 1, 8, 8))
+                else:
+                    owner.exclusions_grid.setLayout(GridLayout(1, 3, 8, 0))
+                owner.exclusions_grid.revalidate()
+                owner.exclusions_grid.repaint()
+
+        self.panel.addComponentListener(_ResizeAdapter())
+
         return self
 
     def set_status(self, text):
         def _update():
             self.status_label.setText(text)
-        self._run_on_ui(_update)
-
-    def set_scope_status(self, text):
-        def _update():
-            self.scope_label.setText(text)
         self._run_on_ui(_update)
 
     def add_log(self, row):
@@ -492,14 +502,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             'skipped': 0,
         }
 
-        print("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
-        print("-  Developer: Ahmed Ezzat (BitTheByte)      -")
-        print("-  Github:    https://github.com/BitTheByte -")
-        print("-  Version:   0.6                           -")
-        print("*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*")
-        print("[WARNING] MAKE SURE TO EDIT THE SETTINGS BEFORE USE")
-        print("[WARNING] THIS TOOL WILL WORK FOR IN-SCOPE ITEMS ONLY")
-        print("[WARNING] THIS TOOL WILL CONSUME TOO MUCH BANDWIDTH")
+        self.ui.append_activity("BitBlinder 0.6 loaded (in-scope only)")
         return
 
     def _update_status(self):
@@ -716,13 +719,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
             )
         else:
             service = http_service
-        req_resp = self.callbacks.makeHttpRequest(service, request)
-        try:
-            if req_resp:
-                self.callbacks.addToSiteMap(req_resp)
-        except Exception:
-            pass
-        return req_resp
+        return self.callbacks.makeHttpRequest(service, request)
 
     def processHttpMessage(self, toolFlag, messageIsRequest, messageInfo):
         # Check if tool is enabled from the gui panel
@@ -738,10 +735,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         url = requestInfo.getUrl()
 
         # Check if the url in the scope
-        if not self.callbacks.isInScope(url):
-            self.ui.set_scope_status("Scope: OUT OF SCOPE - %s %s" % (requestInfo.getMethod(), url))
-            if OP_SHOW_OUT_OF_SCOPE:
-                print("[-] %s is out of scope" % url)
+        if self.ui.get_in_scope_only() and (not self.callbacks.isInScope(url)):
             return
 
         headers = list(requestInfo.getHeaders())
@@ -754,8 +748,10 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
         path = requestInfo.url.getPath()
         method = requestInfo.getMethod()
 
-        self.ui.set_scope_status("Scope: IN SCOPE - %s %s%s" % (method, host, path))
-        self.ui.append_activity("In-scope request: %s %s%s" % (method, host, path))
+        if self.ui.get_in_scope_only():
+            self.ui.append_activity("In-scope request: %s %s%s" % (method, host, path))
+        else:
+            self.ui.append_activity("Request: %s %s%s" % (method, host, path))
 
         exclude_hosts = self.ui.get_exclude_hosts()
         exclude_paths = self.ui.get_exclude_paths()
@@ -829,17 +825,12 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab):
 
         req_time = datetime.datetime.now().strftime('%m/%d|%H:%M:%S')
 
-        print("====================================================")
-        print("[%s] Host: %s" % (req_time, host))
-        print("[%s] Path: %s" % (req_time, path))
-        print("[%s] Port: %i" % (req_time, port))
-        print("[%s] Method: %s" % (req_time, method))
-        print("[%s] Using http: %i" % (req_time, (not https)))
         injection_points = len(vparams) + len(json_paths)
         if self.ui.inject_headers.isSelected():
             injection_points += len(self.ui.get_header_names())
-        print("[%s] Injection points: %s" % (req_time, injection_points))
-        print("====================================================")
+        self.ui.append_activity(
+            "[%s] %s %s%s (points: %s)" % (req_time, method, host, path, injection_points)
+        )
 
         sent_count = 0
 

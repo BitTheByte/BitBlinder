@@ -23,6 +23,9 @@ Burp Suite extension for blind XSS discovery by injecting payloads into **in-sco
 - Activity table + status updates + scope indicator.
 - Payload template picker and inline validation warnings.
 
+## UI
+![BitBlinder panel](assets/panel.png)
+
 ## Requirements
 - Burp Suite
 - Jython (for Python extensions)
@@ -61,6 +64,7 @@ Payloads are **not** auto-encoded. If your target expects URL-encoding, include 
 - **Inject headers**: inject payloads into header names you specify.
 - **Inject JSON body**: inject into JSON request bodies.
 - **JSON: only replace string values**: skip non-strings when injecting JSON.
+- **In-scope only**: enabled by default to process only in-scope items.
 - **Exclusions**:
   - Hosts: exact or subdomain match.
   - Paths: prefix match.
